@@ -1,0 +1,6 @@
+numpy==1.26.0
+numba==0.58.1
+fastapi==0.104.1
+uvicorn==0.24. 0
+requests==2.31.0
+python-dotenv==1.0. 0
