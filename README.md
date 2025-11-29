@@ -22,10 +22,10 @@ The project simulates:
 6. [Local Development (without Docker)](#-local-development-without-docker)
 7. [Docker Deployment](#-docker-deployment)
 8. [Federated Round Example](#-federated-round-example)
-9. [Bonus: Logistic Regression](#-bonus-logistic-regression)
+9. [Logistic Regression](#-logistic-regression)
 10. [Monitoring GPU Usage](#-monitoring-gpu-usage)
 11. [Troubleshooting](#-troubleshooting)
-12. [Deliverables](#-deliverables)
+
 
 ---
 
@@ -67,12 +67,12 @@ High-level architecture:
            |
            |  FedAvg on (w, b)
            |
-   +-------+-------+-------+
-   |       |       |       |
+   +-------+-------+
+   |       |       |     
 +--v--+ +--v--+ +--v--+
-|cl1 | |cl2 | |cl3 |
-|8001| |8002| |8003|
-+----+ +----+ +----+
+|cl1  | |cl2  | | cl3    |
+|8001 | |8002 | | 8003   |
++----+  +----+  +-------+
    CPU/GPU-ready (Numba)
 ```
 
@@ -313,7 +313,7 @@ Typical behavior:
 
 ---
 
-## 🎓 Bonus: Logistic Regression
+## Logistic Regression
 
 As a bonus, the client training was modified to use **logistic regression** instead of linear regression.
 
@@ -414,20 +414,7 @@ If `8001`, `8002`, `8003`, or `9000` are busy:
   docker compose logs -f client1
   docker compose logs -f aggregator
   ```
+##  Author
 
----
-
-## 📦 Deliverables
-
-1. **Source code** (on GitHub) for:
-   - 3 client services (`clients/client1.py`, `clients/client2.py`, `clients/client3.py`)
-   - 1 aggregator service (`agregator/aggregator.py`)
-2. **Complete `docker-compose.yml`**:
-   - Starts 3 clients and 1 aggregator.
-3. **Bonus**:
-   - Logistic regression implementation on clients (CPU, GPU-ready).
-   - Multi-round orchestration script (`test_fl_round.py`).
-
-Once all parts are working locally and in Docker, the next step is to contact the instructor to obtain access to a **remote GPU server** and run the full federated learning environment with real GPU acceleration.
-
----
+Lab completed by: **Wejden Hattour**  
+**Federated Learning GPU Lab (3 clients + 1 aggregator, Docker, logistic regression)**
