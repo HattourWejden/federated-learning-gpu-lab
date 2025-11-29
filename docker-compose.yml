@@ -1,0 +1,32 @@
+services:
+  client1:
+    build:
+      context: .
+      dockerfile: clients/Dockerfile
+    command: uvicorn client1:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+
+  client2:
+    build:
+      context: .
+      dockerfile: clients/Dockerfile
+    command: uvicorn client2:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+
+  client3:
+    build:
+      context: .
+      dockerfile: clients/Dockerfile
+    command: uvicorn client3:app --host 0.0.0.0 --port 8003
+    ports:
+      - "8003:8003"
+
+  aggregator:
+    build:
+      context: .
+      dockerfile: agregator/Dockerfile
+    command: uvicorn aggregator:app --host 0.0.0.0 --port 9000
+    ports:
+      - "9000:9000"
