@@ -37,7 +37,7 @@ def train_client(url: str, client_id: str) -> Dict:
     try:
         print(f"\n🚀 Training {client_id}...")
         response = requests.post(f"{url}/train", timeout=60)
-        
+
         if response.status_code == 200:
             result = response.json()
             print(f"✅ {client_id} training complete")
@@ -56,7 +56,7 @@ def aggregate_models(client_results: List[Dict]) -> Dict:
     """Send results to aggregator."""
     try:
         print(f"\n🔄 Sending results to aggregator...")
-        
+
         # Prepare aggregation request
         updates = [
             {
@@ -66,15 +66,15 @@ def aggregate_models(client_results: List[Dict]) -> Dict:
             }
             for result in client_results
         ]
-        
+
         payload = {"updates": updates}
-        
+
         response = requests.post(
             f"{AGGREGATOR_URL}/aggregate",
             json=payload,
             timeout=30
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             print(f"✅ Aggregation complete")
@@ -96,51 +96,51 @@ def main():
     print("=" * 70)
     print("🎯 FEDERATED LEARNING ROUND - TEST")
     print("=" * 70)
-    
+
     # Step 1: Health checks
     print("\n📋 Step 1: Health Checks")
     print("-" * 70)
-    
+
     all_healthy = True
     for i, url in enumerate(CLIENT_URLS, 1):
         if not health_check(url, f"Client {i}"):
             all_healthy = False
-    
+
     if not health_check(AGGREGATOR_URL, "Aggregator"):
         all_healthy = False
-    
+
     if not all_healthy:
         print("\n❌ Not all services are healthy. Exiting.")
         return
-    
+
     # Step 2: Train clients
     print("\n📋 Step 2: Local Training on Clients")
     print("-" * 70)
-    
+
     client_results = []
     for i, url in enumerate(CLIENT_URLS, 1):
         result = train_client(url, f"Client {i}")
         if result:
             client_results. append(result)
         time.sleep(1)  # Small delay between requests
-    
+
     if len(client_results) < 3:
         print(f"\n❌ Not all clients trained. Got {len(client_results)}/3")
         return
-    
+
     # Step 3: Aggregate
     print("\n📋 Step 3: Federated Aggregation")
     print("-" * 70)
-    
+
     aggregation_result = aggregate_models(client_results)
-    
+
     # Step 4: Summary
     print("\n📋 Step 4: Results Summary")
     print("-" * 70)
     print("\nClient Results:")
     for result in client_results:
         print(f"  {result['client_id']}: w={result['w']:.4f}, b={result['b']:. 4f}")
-    
+
     if aggregation_result:
         print(f"\nGlobal Model:")
         print(f"  Global w = {aggregation_result['global_w']:.4f}")
@@ -153,7 +153,7 @@ def main():
         b_error = abs(aggregation_result['global_b'] - 2.0)
         print(f"  w_error = {w_error:.4f}")
         print(f"  b_error = {b_error:.4f}")
-    
+
     print("\n" + "=" * 70)
     print("✅ FEDERATED LEARNING ROUND COMPLETE")
     print("=" * 70)

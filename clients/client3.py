@@ -1,129 +1,99 @@
-"""
-Client 3: Local training service for federated learning. 
-Trains a linear regression model on local data and returns model parameters.
-"""
-
-import sys
-import os
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys. path.insert(0, str(Path(__file__).parent.parent))
-
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import uvicorn
 import numpy as np
-from shared.utils import SyntheticDataGenerator, LocalTrainer
+from fastapi import FastAPI
+from numba import cuda
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Federated Learning Client 3",
-    description="Local training service for federated learning",
-    version="1.0.0"
-)
+app = FastAPI(title="Federated Learning Client 3")
 
-# Global trainer instance
-trainer = None
-X_train = None
-y_train = None
-
-# Response model
-class TrainResponse(BaseModel):
-    """Response from training endpoint."""
-    w: float
-    b: float
-    client_id: str
-    status: str
+@cuda.jit
+def compute_gradients_kernel(x, y, w, b, grad_w_partial, grad_b_partial):
+    i = cuda.grid(1)
+    if i < x.size:
+        xi = x[i]
+        yi = y[i]
+        y_pred = w * xi + b
+        e = y_pred - yi
+        gw = e * xi
+        gb = e
+        cuda.atomic.add(grad_w_partial, 0, gw)
+        cuda.atomic.add(grad_b_partial, 0, gb)
 
 
-class HealthResponse(BaseModel):
-    """Health check response."""
-    status: str
-    client_id: str
+def local_train_gpu(num_samples=1024, num_epochs=50, lr=0.01, noise_std=0.1):
+    true_w = 3.5
+    true_b = 2.0
+
+    xs = np.random.uniform(-5, 5, size=num_samples).astype(np.float32)
+    noise = np.random.normal(0, noise_std, size=num_samples).astype(np.float32)
+    ys = true_w * xs + true_b + noise
+
+    w = np.float32(0.0)
+    b = np.float32(0.0)
+    N = np.float32(num_samples)
+
+    d_x = cuda.to_device(xs)
+    d_y = cuda.to_device(ys)
+
+    threads_per_block = 128
+    blocks_per_grid = (num_samples + threads_per_block - 1) // threads_per_block
+
+    for epoch in range(num_epochs):
+        d_grad_w = cuda.device_array(shape=1, dtype=np.float32)
+        d_grad_b = cuda.device_array(shape=1, dtype=np.float32)
+        d_grad_w[0] = 0.0
+        d_grad_b[0] = 0.0
+
+        compute_gradients_kernel[blocks_per_grid, threads_per_block](d_x, d_y, w, b, d_grad_w, d_grad_b)
+        cuda.synchronize()
+
+        grad_w_sum = d_grad_w.copy_to_host()[0]
+        grad_b_sum = d_grad_b.copy_to_host()[0]
+
+        grad_w = (2.0 / N) * grad_w_sum
+        grad_b = (2.0 / N) * grad_b_sum
+
+        w = w - lr * grad_w
+        b = b - lr * grad_b
+
+    return float(w), float(b)
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize trainer and generate data on startup."""
-    global trainer, X_train, y_train
-    
-    # Generate synthetic data (different seed for client 3)
-    data_gen = SyntheticDataGenerator(
-        w_true=3.5,
-        b_true=2.0,
-        noise_std=0.5,
-        random_seed=456  # Different seed for each client
-    )
-    X_train, y_train = data_gen.generate(n_samples=200)
-    
-    # Initialize trainer
-    trainer = LocalTrainer(
-        learning_rate=0.01,
-        iterations=100,
-        batch_size=32,
-        use_gpu=True
-    )
-    
-    print("✅ Client 3 initialized")
-    print(f"   Data shape: X={X_train.shape}, y={y_train.shape}")
-    print(f"   Training config: lr=0.01, iterations=100, batch_size=32")
+def local_train_cpu(num_samples=1024, num_epochs=50, lr=0.01, noise_std=0.1):
+    true_w = 3.5
+    true_b = 2.0
+
+    xs = np.random.uniform(-5, 5, size=num_samples).astype(np.float32)
+    noise = np.random.normal(0, noise_std, size=num_samples).astype(np.float32)
+    ys = true_w * xs + true_b + noise
+
+    w = 0.0
+    b = 0.0
+    N = float(num_samples)
+
+    for epoch in range(num_epochs):
+        y_pred = w * xs + b
+        e = y_pred - ys
+        grad_w = (2.0 / N) * np.sum(e * xs)
+        grad_b = (2.0 / N) * np.sum(e)
+        w = w - lr * grad_w
+        b = b - lr * grad_b
+
+    return float(w), float(b)
 
 
-@app.get("/health", response_model=HealthResponse)
-async def health_check():
-    """
-    Health check endpoint. 
-    
-    Returns:
-        Health status
-    """
-    return {
-        "status": "healthy",
-        "client_id": "client3"
-    }
+@app.get("/health")
+def health():
+    return {"status": "ok", "cuda_available": cuda.is_available()}
 
 
-@app.post("/train", response_model=TrainResponse)
-async def train():
-    """
-    Run local training on client's private data.
-    
-    Returns:
-        Trained model parameters {w, b}
-    """
-    if trainer is None or X_train is None or y_train is None:
-        raise HTTPException(status_code=500, detail="Trainer not initialized")
-    
+@app.post("/train")
+def train():
     try:
-        print("\n🚀 Client 3 starting training...")
-        
-        # Reset model parameters for this round
-        trainer. w = np.random.randn().astype(np.float32) * 0.1
-        trainer.b = np.random. randn().astype(np. float32) * 0.1
-        
-        # Train the model
-        result = trainer.train(X_train, y_train)
-        
-        print(f"✅ Client 3 training complete")
-        print(f"   Final w={result['w']:.4f}, b={result['b']:.4f}")
-        
-        return {
-            "w": result['w'],
-            "b": result['b'],
-            "client_id": "client3",
-            "status": "success"
-        }
-    
+        if cuda.is_available():
+            w, b = local_train_gpu()
+            backend = "gpu"
+        else:
+            w, b = local_train_cpu()
+            backend = "cpu"
+        return {"w": w, "b": b, "backend": backend}
     except Exception as e:
-        print(f"❌ Client 3 training error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8003,
-        log_level="info"
-    )
+        return {"error": "training_failed", "details": str(e)}
