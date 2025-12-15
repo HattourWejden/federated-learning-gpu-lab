@@ -414,7 +414,4 @@ If `8001`, `8002`, `8003`, or `9000` are busy:
   docker compose logs -f client1
   docker compose logs -f aggregator
   ```
-##  Author
-
-Lab completed by: **Wejden Hattour**  
 **Federated Learning GPU Lab (3 clients + 1 aggregator, Docker, logistic regression)**
